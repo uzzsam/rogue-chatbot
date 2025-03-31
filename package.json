@@ -1,0 +1,28 @@
+{
+  "name": "rogue-chatbot",
+  "version": "1.0.0",
+  "description": "A simple chatbot using the Grok API with Vercel deployment and Wix frontend",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "vercel build",
+    "deploy": "vercel deploy --prod"
+  },
+  "keywords": [
+    "chatbot",
+    "grok",
+    "vercel",
+    "wix",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "vercel": "^32.5.0"
+  }
+}
