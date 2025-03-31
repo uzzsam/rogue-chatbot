@@ -1,6 +1,6 @@
 // Wix Frontend Code for Rogue Chatbot
 
-// Replace this URL with your actual Vercel deployment URL
+// Vercel deployment URL
 const VERCEL_API_URL = 'https://rogue-chatbot.vercel.app/api/chat';
 
 import wixAnimations from 'wix-animations';
