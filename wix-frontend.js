@@ -1,10 +1,10 @@
-// Wix Frontend Code for Rogue Chatbot
+// Wix Frontend Code for Rogue Chatbot v1
 
 // Vercel deployment URL
 const VERCEL_API_URL = 'https://rogue-chatbot.vercel.app/api/chat';
 
 import wixAnimations from 'wix-animations';
-import wixWindow from 'wix-window';
+//import wixWindow from 'wix-window';
 import wixFetch from 'wix-fetch';
 
 $w.onReady(function () {
@@ -74,7 +74,7 @@ async function handleMessage() {
            .play();
 
        // Scroll to the scroll2 element with animation
-       wixWindow.scrollTo($w('#scroll2'), { scrollAnimation: true });
+       //wixWindow.scrollTo($w('#scroll2'), { scrollAnimation: true });
 
    } catch (error) {
        console.error('Error in frontend:', error);
