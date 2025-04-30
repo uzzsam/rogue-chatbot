@@ -4,14 +4,14 @@
   "description": "Edge-streaming Grok chatbot for Wix",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",              // local edge function testing
-    "deploy": "vercel deploy --prod"  // optional one-liner
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
   },
   "dependencies": {
-    "undici": "^6.16.0"               // fetch polyfill for `vercel dev`
+    "undici": "^6.16.0"
   },
   "engines": {
-    "node": "18.x"                    // matches Vercel Edge runtime
+    "node": "18.x"
   },
   "license": "MIT"
 }
