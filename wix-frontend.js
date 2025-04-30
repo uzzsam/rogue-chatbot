@@ -2,26 +2,29 @@
 /*  chat-frontend.js  —  Wix Public code
     --------------------------------------------------------------
     Streams Grok tokens from Vercel Edge and renders them into a
-    two-bubble repeater (#userBox / #botBox).
+    two-bubble repeater (#userBox / #botBox).  Scrolls the page to
+    #scroll2 (your anchor element) instead of using scrollToIndex(),
+    which isn’t supported inside a repeater.
 */
 
-const ENDPOINT = 'https://rogue-chatbot.vercel.app/api/chat';   // ← no trailing slash
-const CHUNK_RE = /^data:(.*)$/m;                                // parses each SSE line
+const ENDPOINT = 'https://rogue-chatbot.vercel.app/api/chat';   // ← your edge fn
+const CHUNK_RE = /^data:(.*)$/m;                                // SSE line regex
 const td        = new TextDecoder();
 
 let conversation = [];   // in-page memory (no history)
-let lastBotId    = null; // _id of the currently streaming bot item
+let lastBotId    = null; // _id of the message currently streaming
 
 /* -------------------------------------------------------------- */
 /*  Wix onReady                                                    */
 /* -------------------------------------------------------------- */
 $w.onReady(() => {
-  /* 1  Set up repeater renderer  */
+
+  /* 1 | How each repeater item renders -------------------------------- */
   $w('#chatRepeater').onItemReady(($item, itemData) => {
     const isUser = itemData.role === 'user';
 
-    toggleBox($item('#userBox'),  isUser);
-    toggleBox($item('#botBox'),  !isUser);
+    showHide($item('#userBox'),  isUser);
+    showHide($item('#botBox'),  !isUser);
 
     if (isUser) {
       $item('#userText').text = itemData.message;
@@ -30,7 +33,7 @@ $w.onReady(() => {
     }
   });
 
-  /* 2  UI handlers  */
+  /* 2 | Input handlers ------------------------------------------------- */
   $w('#sendButton').onClick(sendMessage);
   $w('#userInput').onKeyPress(e => {
     if (e.key === 'Enter') sendMessage();
@@ -38,16 +41,16 @@ $w.onReady(() => {
 });
 
 /* -------------------------------------------------------------- */
-/*  Send message & stream answer                                   */
+/*  Send message & stream Grok answer                               */
 /* -------------------------------------------------------------- */
 async function sendMessage() {
   const input = $w('#userInput');
   const text  = input.value.trim();
   if (!text) return;
 
-  appendBubble('user', text);   // show user bubble
+  appendBubble('user', text);        // show user message
   input.value = '';
-  showThinking(true);
+  showThinking(true);                // show loader (#streamingVideo)
 
   try {
     const res = await fetch(ENDPOINT, {
@@ -56,7 +59,9 @@ async function sendMessage() {
       body   : JSON.stringify({ message: text })
     });
 
-    if (!res.ok || !res.body) throw new Error('Network error');
+    if (!res.ok || !res.body) {
+      throw new Error(`Net error: ${res.status}`);
+    }
 
     let buffer = '';
     const reader = res.body.getReader();
@@ -67,7 +72,7 @@ async function sendMessage() {
 
       buffer += td.decode(value);
       const lines = buffer.split('\n');
-      buffer = lines.pop();          // keep the last partial line
+      buffer = lines.pop();                          // keep partial line
 
       for (const line of lines) {
         const m = CHUNK_RE.exec(line);
@@ -82,7 +87,7 @@ async function sendMessage() {
     console.error(err);
     appendBubble('bot', '⚠️ Sorry, something went wrong.');
   } finally {
-    showThinking(false);
+    showThinking(false);             // hide loader
   }
 }
 
@@ -90,36 +95,38 @@ async function sendMessage() {
 /*  Helper: add / update repeater items                            */
 /* -------------------------------------------------------------- */
 function appendBubble(role, textChunk, streaming = false) {
-  /* Streaming update */
+  /* 1 | Update existing bot bubble while streaming  */
   if (role === 'bot' && streaming && lastBotId) {
-    conversation = conversation.map(o =>
-      o._id === lastBotId ? { ...o, message: o.message + textChunk } : o
+    conversation = conversation.map(obj =>
+      obj._id === lastBotId ? { ...obj, message: obj.message + textChunk } : obj
     );
     refreshRepeater();
     return;
   }
 
-  /* New message */
+  /* 2 | Insert a new message  */
   const newItem = {
     _id: String(Date.now() + Math.random()),
     role,
     message: textChunk
   };
   conversation.push(newItem);
+
   if (role === 'bot') lastBotId = newItem._id;
   refreshRepeater();
 }
 
 function refreshRepeater() {
   $w('#chatRepeater').data = conversation;
-  $w('#chatRepeater').scrollToIndex(conversation.length - 1);
+  $w('#scroll2').scrollTo()         // smooth scroll to anchor element
+    .catch(()=>{});                 // ignore if element not in view yet
 }
 
 /* -------------------------------------------------------------- */
-/*  Helper: show / hide elements                                   */
+/*  Helper: show / hide & loader control                           */
 /* -------------------------------------------------------------- */
-function toggleBox($box, show) {
-  show ? $box.show() : $box.hide();
+function showHide($elem, show) {
+  show ? $elem.show() : $elem.hide();
 }
 
 function showThinking(show) {
