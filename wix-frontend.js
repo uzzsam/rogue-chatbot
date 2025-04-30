@@ -1,4 +1,5 @@
 // Wix Frontend Code for Rogue Chatbot v1
+// Wix Frontend Code for Rogue Chatbot v1
 /*  chat-frontend.js  —  Wix Public code
     --------------------------------------------------------------
     Streams Grok tokens from Vercel Edge and renders them into a
@@ -118,7 +119,7 @@ function appendBubble(role, textChunk, streaming = false) {
 
 function refreshRepeater() {
   $w('#chatRepeater').data = conversation;
-  $w('#scroll2').scrollTo()         // smooth scroll to anchor element
+  $w('#scroll2').scrollTo()         // scrollTo({ "duration": 300, "direction": "vertical" }) smooth scroll to anchor element
     .catch(()=>{});                 // ignore if element not in view yet
 }
 
