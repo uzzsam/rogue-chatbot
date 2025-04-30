@@ -1,89 +1,128 @@
 // Wix Frontend Code for Rogue Chatbot v1
+/*  chat-frontend.js  —  Wix Public code
+    --------------------------------------------------------------
+    Streams Grok tokens from Vercel Edge and renders them into a
+    two-bubble repeater (#userBox / #botBox).
+*/
 
-// Vercel deployment URL
-const VERCEL_API_URL = 'https://rogue-chatbot.vercel.app/api/chat';
+const ENDPOINT = 'https://rogue-chatbot.vercel.app/api/chat';   // ← no trailing slash
+const CHUNK_RE = /^data:(.*)$/m;                                // parses each SSE line
+const td        = new TextDecoder();
 
-import wixAnimations from 'wix-animations';
-//import wixWindow from 'wix-window';
-import wixFetch from 'wix-fetch';
+let conversation = [];   // in-page memory (no history)
+let lastBotId    = null; // _id of the currently streaming bot item
 
-$w.onReady(function () {
-   // Enter key listener for input
-   $w('#userInput').onKeyPress((event) => {
-       if (event.key === 'Enter') {
-           handleMessage();
-       }
-   });
+/* -------------------------------------------------------------- */
+/*  Wix onReady                                                    */
+/* -------------------------------------------------------------- */
+$w.onReady(() => {
+  /* 1  Set up repeater renderer  */
+  $w('#chatRepeater').onItemReady(($item, itemData) => {
+    const isUser = itemData.role === 'user';
 
-   // Initially hide streaming video
-   $w('#streamingVideo').hide();
+    toggleBox($item('#userBox'),  isUser);
+    toggleBox($item('#botBox'),  !isUser);
+
+    if (isUser) {
+      $item('#userText').text = itemData.message;
+    } else {
+      $item('#botText').text  = itemData.message;
+    }
+  });
+
+  /* 2  UI handlers  */
+  $w('#sendButton').onClick(sendMessage);
+  $w('#userInput').onKeyPress(e => {
+    if (e.key === 'Enter') sendMessage();
+  });
 });
 
-// Function to send message to Vercel API
-async function sendMessage(message) {
-    try {
-        const response = await wixFetch.fetch(VERCEL_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ message })
-        });
+/* -------------------------------------------------------------- */
+/*  Send message & stream answer                                   */
+/* -------------------------------------------------------------- */
+async function sendMessage() {
+  const input = $w('#userInput');
+  const text  = input.value.trim();
+  if (!text) return;
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Error communicating with chatbot');
+  appendBubble('user', text);   // show user bubble
+  input.value = '';
+  showThinking(true);
+
+  try {
+    const res = await fetch(ENDPOINT, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ message: text })
+    });
+
+    if (!res.ok || !res.body) throw new Error('Network error');
+
+    let buffer = '';
+    const reader = res.body.getReader();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += td.decode(value);
+      const lines = buffer.split('\n');
+      buffer = lines.pop();          // keep the last partial line
+
+      for (const line of lines) {
+        const m = CHUNK_RE.exec(line);
+        if (m && m[1]) {
+          if (m[1] === '[DONE]') continue;
+          const delta = JSON.parse(m[1]).choices?.[0]?.delta?.content ?? '';
+          if (delta) appendBubble('bot', delta, /*streaming=*/true);
         }
-
-        const data = await response.json();
-        return data.response;
-    } catch (error) {
-        console.error('Error sending message to Vercel API:', error);
-        throw error;
+      }
     }
+  } catch (err) {
+    console.error(err);
+    appendBubble('bot', '⚠️ Sorry, something went wrong.');
+  } finally {
+    showThinking(false);
+  }
 }
 
-async function handleMessage() {
-   const userInput = $w('#userInput');
-   const userText = $w('#userText');
-   const botText = $w('#botText');
-   const streamingVideo = $w('#streamingVideo');
+/* -------------------------------------------------------------- */
+/*  Helper: add / update repeater items                            */
+/* -------------------------------------------------------------- */
+function appendBubble(role, textChunk, streaming = false) {
+  /* Streaming update */
+  if (role === 'bot' && streaming && lastBotId) {
+    conversation = conversation.map(o =>
+      o._id === lastBotId ? { ...o, message: o.message + textChunk } : o
+    );
+    refreshRepeater();
+    return;
+  }
 
-   const message = userInput.value.trim();
-   if (!message) return;
-
-   // Display user message
-   userText.text = message;
-   userInput.value = '';
-
-   // Show streaming video and "Thinking..." message
-   botText.text = 'Thinking...';
-   streamingVideo.show();
-
-   try {
-       const botResponse = await sendMessage(message);
-
-       // Hide streaming video and show response
-       streamingVideo.hide();
-       botText.text = botResponse;
-
-       // Animate response
-       wixAnimations.timeline()
-           .add(botText, { opacity: 0, duration: 100 })
-           .add(botText, { opacity: 1, duration: 300 })
-           .play();
-
-       // Scroll to the scroll2 element with animation
-       //wixWindow.scrollTo($w('#scroll2'), { scrollAnimation: true });
-
-   } catch (error) {
-       console.error('Error in frontend:', error);
-       streamingVideo.hide();
-       botText.text = 'Sorry, something went wrong. Please try again.';
-   }
+  /* New message */
+  const newItem = {
+    _id: String(Date.now() + Math.random()),
+    role,
+    message: textChunk
+  };
+  conversation.push(newItem);
+  if (role === 'bot') lastBotId = newItem._id;
+  refreshRepeater();
 }
 
-// Button click handler
-export function sendButton_click(event) {
-   handleMessage();
+function refreshRepeater() {
+  $w('#chatRepeater').data = conversation;
+  $w('#chatRepeater').scrollToIndex(conversation.length - 1);
+}
+
+/* -------------------------------------------------------------- */
+/*  Helper: show / hide elements                                   */
+/* -------------------------------------------------------------- */
+function toggleBox($box, show) {
+  show ? $box.show() : $box.hide();
+}
+
+function showThinking(show) {
+  const vid = $w('#streamingVideo');
+  show ? vid.show() : vid.hide();
 }
